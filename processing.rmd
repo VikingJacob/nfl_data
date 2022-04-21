@@ -1,0 +1,108 @@
+
+```{r}
+library(tidyverse)
+library(caret)
+library(klaR)
+```
+
+```{r}
+data <- read.csv('play_by_play_data/regular_season/reg_pbp_2009.csv')
+```
+
+```{r}
+vikings_2019 <- data %>% filter(posteam == 'MIN') %>%
+  filter(play_type != 'kickoff' & play_type != 'extra_point' & 
+           play_type != 'punt' & play_type != 'no_play' & 
+           play_type != 'field_goal' & play_type != 'qb_kneel') %>%
+  dplyr::select(home_team, away_team, posteam, posteam_type, defteam,
+                yardline_100, quarter_seconds_remaining,
+                half_seconds_remaining, game_seconds_remaining, game_half,
+                qtr, down, ydstogo, play_type, yards_gained, pass_length,
+                posteam_timeouts_remaining, defteam_timeouts_remaining,
+                score_differential_post, rush_attempt, pass_attempt) %>%
+  filter(!is.na(down))
+write.csv(vikings_2019, 'viking_2019.csv')
+```
+
+```{r test logistic regression}
+log.fit <- glm(pass_attempt ~ yardline_100 + qtr + quarter_seconds_remaining
+               + down + ydstogo, data = vikings_2019, family = 'binomial')
+
+log.response <- predict(log.fit, type = 'response')
+log.pred <- rep(0, nrow(vikings_2019))
+
+log.pred[log.response > 0.5] <- 1
+
+train_error <- mean(as.numeric(log.pred != vikings_2019$pass_attempt))
+
+train_error
+```
+
+```{r try to estimate test error}
+set.seed(100)
+
+control <- trainControl(method = 'cv', number = 10, savePredictions = T)
+
+model.cv <- train(pass_attempt ~ yardline_100 + qtr +
+                quarter_seconds_remaining + down + ydstogo, 
+               data = vikings_2019, trControl = control, 
+               method = 'glm', family = 'binomial')
+
+
+model.cv
+```
+
+```{r knn}
+set.seed(100)
+
+x <- model.matrix(pass_attempt ~ yardline_100 + qtr +
+                quarter_seconds_remaining + down + ydstogo, 
+                data = vikings_2019)
+y <- as.factor(vikings_2019$pass_attempt)
+
+control <- trainControl(method = 'cv', number = 10, savePredictions = T)
+
+model.cv <- train(x, y, trControl = control, method = 'knn', preProcess = c("center","scale"), tuneGrid=data.frame(.k=1:20))
+
+
+model.cv
+plot(model.cv)
+```
+
+63% accuracy is actually significantly better than random guessing. Could be really useful for playoff predictions maybe. Will test with superbowl winners using their playoff data next.
+
+```{r}
+write.csv(vikings_2019, 'viking_2019.csv')
+```
+
+```{r}
+data <- read.csv('play_by_play_data/regular_season/reg_pbp_2019.csv')
+
+temp <- data %>% filter(posteam == 'KC') %>%
+  filter(play_type != 'kickoff' & play_type != 'extra_point' & 
+           play_type != 'punt' & play_type != 'no_play' & 
+           play_type != 'field_goal' & play_type != 'qb_kneel') %>%
+  dplyr::select(home_team, away_team, posteam, posteam_type, defteam,
+                yardline_100, quarter_seconds_remaining,
+                half_seconds_remaining, game_seconds_remaining, game_half,
+                qtr, down, ydstogo, play_type, yards_gained, pass_length,
+                posteam_timeouts_remaining, defteam_timeouts_remaining,
+                score_differential_post, rush_attempt, pass_attempt) %>%
+  filter(!is.na(down))
+write.csv(temp, 'processed_data/reg_season/2019reg_KC.csv')
+
+data <- read.csv('play_by_play_data/post_season/post_pbp_2019.csv')
+
+temp <- data %>% filter(posteam == 'KC') %>%
+  filter(play_type != 'kickoff' & play_type != 'extra_point' & 
+           play_type != 'punt' & play_type != 'no_play' & 
+           play_type != 'field_goal' & play_type != 'qb_kneel') %>%
+  dplyr::select(home_team, away_team, posteam, posteam_type, defteam,
+                yardline_100, quarter_seconds_remaining,
+                half_seconds_remaining, game_seconds_remaining, game_half,
+                qtr, down, ydstogo, play_type, yards_gained, pass_length,
+                posteam_timeouts_remaining, defteam_timeouts_remaining,
+                score_differential_post, rush_attempt, pass_attempt) %>%
+  filter(!is.na(down))
+write.csv(temp, 'processed_data/post_season/2019post_KC.csv')
+```

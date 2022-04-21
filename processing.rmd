@@ -78,7 +78,7 @@ write.csv(vikings_2019, 'viking_2019.csv')
 ```{r}
 data <- read.csv('play_by_play_data/regular_season/reg_pbp_2019.csv')
 
-temp <- data %>% filter(posteam == 'KC') %>%
+temp1 <- data %>% filter(posteam == 'KC') %>%
   filter(play_type != 'kickoff' & play_type != 'extra_point' & 
            play_type != 'punt' & play_type != 'no_play' & 
            play_type != 'field_goal' & play_type != 'qb_kneel') %>%
@@ -89,11 +89,11 @@ temp <- data %>% filter(posteam == 'KC') %>%
                 posteam_timeouts_remaining, defteam_timeouts_remaining,
                 score_differential_post, rush_attempt, pass_attempt) %>%
   filter(!is.na(down))
-write.csv(temp, 'processed_data/reg_season/2019reg_KC.csv')
+#write.csv(temp, 'processed_data/reg_season/2019reg_KC.csv')
 
 data <- read.csv('play_by_play_data/post_season/post_pbp_2019.csv')
 
-temp <- data %>% filter(posteam == 'KC') %>%
+temp2 <- data %>% filter(posteam == 'KC') %>%
   filter(play_type != 'kickoff' & play_type != 'extra_point' & 
            play_type != 'punt' & play_type != 'no_play' & 
            play_type != 'field_goal' & play_type != 'qb_kneel') %>%
@@ -104,5 +104,52 @@ temp <- data %>% filter(posteam == 'KC') %>%
                 posteam_timeouts_remaining, defteam_timeouts_remaining,
                 score_differential_post, rush_attempt, pass_attempt) %>%
   filter(!is.na(down))
-write.csv(temp, 'processed_data/post_season/2019post_KC.csv')
+#write.csv(temp, 'processed_data/post_season/2019post_KC.csv')
+```
+
+```{r log reg and knn}
+logreg <- function(regSeason){
+  
+  control <- trainControl(method = 'cv', number = 10, savePredictions = T)
+  model.cv <- train(as.factor(pass_attempt) ~ yardline_100 + qtr +
+                quarter_seconds_remaining + down + ydstogo, 
+               data = regSeason, trControl = control, 
+               method = 'glm', family = 'binomial')
+  
+  return(model.cv)
+  
+}
+
+
+log_mse <- function(model, postSeason){
+  log.response <- predict(model, newdata = postSeason, type = 'prob')
+  log.pred <- rep(0, nrow(postSeason))
+
+  log.pred[log.response[2] > 0.5] <- 1
+  
+  postSeason_mse <- mean(as.numeric(log.pred != postSeason$pass_attempt))
+  return(postSeason_mse)
+}
+
+knn <- function(regSeason){
+  x <- model.matrix(pass_attempt ~ yardline_100 + qtr +
+                quarter_seconds_remaining + down + ydstogo, 
+                data = regSeason)
+  y <- as.factor(regSeason$pass_attempt)
+
+  control <- trainControl(method = 'cv', number = 10, savePredictions = T)
+
+  model.cv <- train(x, y, trControl = control, method = 'knn',
+                    preProcess = c("center","scale"), tuneGrid=data.frame(.k=1:20))
+  
+  return(model.cv)
+}
+
+
+knn_mse <- function(model, postSeason){
+  knn.pred <- predict(model, newdata = model.matrix(pass_attempt ~ yardline_100 + qtr +
+                quarter_seconds_remaining + down + ydstogo, data = postSeason))
+  
+  return(mean(knn.pred != postSeason$pass_attempt))
+}
 ```

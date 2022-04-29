@@ -52,7 +52,7 @@ model.cv <- train(pass_attempt ~ yardline_100 + qtr +
 model.cv
 ```
 
-```{r knn}
+```{r knn, warning=FALSE}
 set.seed(100)
 
 x <- model.matrix(pass_attempt ~ yardline_100 + qtr +
@@ -62,7 +62,7 @@ y <- as.factor(vikings_2019$pass_attempt)
 
 control <- trainControl(method = 'cv', number = 10, savePredictions = T)
 
-model.cv <- train(x, y, trControl = control, method = 'knn', preProcess = c("center","scale"), tuneGrid=data.frame(.k=1:20))
+model.cv <- train(x, y, trControl = control, method = 'knn', preProcess = c("center","scale"), tuneGrid=data.frame(.k=1:100))
 
 
 model.cv
@@ -124,11 +124,9 @@ logreg <- function(regSeason){
 log_mse <- function(model, postSeason){
   log.response <- predict(model, newdata = postSeason, type = 'prob')
   log.pred <- rep(0, nrow(postSeason))
-
   log.pred[log.response[2] > 0.5] <- 1
-  
-  postSeason_mse <- mean(as.numeric(log.pred != postSeason$pass_attempt))
-  return(postSeason_mse)
+  xtab <- table(log.pred, as.factor(postSeason$pass_attempt))
+  return(confusionMatrix(xtab))
 }
 
 knn <- function(regSeason){
@@ -146,10 +144,19 @@ knn <- function(regSeason){
 }
 
 
-knn_mse <- function(model, postSeason){
+knn_conusionMatrix <- function(model, postSeason){
   knn.pred <- predict(model, newdata = model.matrix(pass_attempt ~ yardline_100 + qtr +
                 quarter_seconds_remaining + down + ydstogo, data = postSeason))
   
-  return(mean(knn.pred != postSeason$pass_attempt))
+  truth <- postSeason$pass_attempt
+  xtab <- table(knn.pred, truth)
+  return(confusionMatrix(xtab))
 }
+```
+
+```{r}
+
+model.cv <- logreg(regSeason)
+
+testing <- log_mse(model.cv, postSeason)
 ```
